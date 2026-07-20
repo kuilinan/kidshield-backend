@@ -189,7 +189,7 @@ app.post('/api/register', async (req, res) => {
 
     // 检查邮箱是否已注册
     const existing = useSqlite
-      ? sqlGet('SELECT * FROM users WHERE email = ?', { email })
+      ? sqlGet('SELECT * FROM users WHERE email = ?', [email])
       : db.find('users', u => u.email === email);
 
     if (existing) {
@@ -235,7 +235,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     const user = useSqlite
-      ? sqlGet('SELECT * FROM users WHERE email = ?', { email })
+      ? sqlGet('SELECT * FROM users WHERE email = ?', [email])
       : db.find('users', u => u.email === email);
 
     if (!user) {
@@ -278,7 +278,7 @@ app.post('/api/child/bind', authMiddleware, async (req, res) => {
     if (!parent_code) return res.status(400).json({ error: '请输入家长码' });
 
     const parent = useSqlite
-      ? sqlGet('SELECT id, email, nickname FROM users WHERE role = ? AND parent_code = ?', { role: 'parent', parent_code })
+      ? sqlGet('SELECT id, email, nickname FROM users WHERE role = ? AND parent_code = ?', ['parent', parent_code])
       : db.find('users', u => u.role === 'parent' && u.parent_code === parent_code);
 
     if (!parent) return res.status(400).json({ error: '家长码无效' });
