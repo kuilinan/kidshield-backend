@@ -20,7 +20,7 @@ if (process.env.VERCEL) {
 } else {
   try {
     const Database = require('better-sqlite3');
-    db = new Database('/tmp/kidshield.db');
+    db = new Database('/data/kidshield.db');
     db.pragma('journal_mode=WAL');
     useSqlite = true;
     initSqliteTables();
@@ -277,7 +277,7 @@ app.post('/api/login', async (req, res) => {
 // ============== 获取用户信息 ==============
 app.get('/api/user/me', authMiddleware, (req, res) => {
   const user = useSqlite
-    ? sqlGet('SELECT id, email, role, nickname, parent_code, parent_id, created_at FROM users WHERE id = @id', { id: req.user.id })
+    ? sqlGet('SELECT id, email, role, nickname, parent_code, parent_id, created_at FROM users WHERE id = ?', [req.user.id])
     : db.find('users', u => u.id === req.user.id);
 
   if (!user) return res.status(404).json({ error: '用户不存在' });
@@ -300,7 +300,7 @@ app.post('/api/child/bind', authMiddleware, async (req, res) => {
     if (!parent) return res.status(400).json({ error: '家长码无效' });
 
     if (useSqlite) {
-      sqlRun('UPDATE users SET parent_id = ? WHERE id = @id', { parent_id: parent.id, id: req.user.id });
+      sqlRun('UPDATE users SET parent_id = ? WHERE id = ?', [parent.id, req.user.id]);
     } else {
       db.update('users', u => u.id === req.user.id, { parent_id: parent.id });
     }
@@ -316,7 +316,7 @@ app.get('/api/parent/children', authMiddleware, (req, res) => {
   if (req.user.role !== 'parent') return res.status(403).json({ error: '仅家长可查看' });
 
   const children = useSqlite
-    ? sqlRun('SELECT id, email, nickname, created_at FROM users WHERE parent_id = @parent_id', { parent_id: req.user.id })
+    ? sqlRun('SELECT id, email, nickname, created_at FROM users WHERE parent_id = ?', [req.user.id])
     : db.filter('users', u => u.parent_id === req.user.id);
 
   res.json({ children: children.map(c => ({ id: c.id, email: c.email, nickname: c.nickname })) });
@@ -339,7 +339,7 @@ app.post('/api/whitelist/add', authMiddleware, (req, res) => {
 
 app.get('/api/whitelist/:childId', authMiddleware, (req, res) => {
   const items = useSqlite
-    ? sqlRun('SELECT * FROM whitelist_apps WHERE child_id = @child_id', { child_id: req.params.childId })
+    ? sqlRun('SELECT * FROM whitelist_apps WHERE child_id = ?', [req.params.childId])
     : db.filter('whitelist_apps', w => w.child_id === req.params.childId);
   res.json({ apps: items });
 });
@@ -377,7 +377,7 @@ app.post('/api/missions/create', authMiddleware, (req, res) => {
 
 app.get('/api/missions/:childId', authMiddleware, (req, res) => {
   const missions = useSqlite
-    ? sqlRun('SELECT * FROM missions WHERE child_id = @child_id ORDER BY created_at DESC', { child_id: req.params.childId })
+    ? sqlRun('SELECT * FROM missions WHERE child_id = ? ORDER BY created_at DESC', [req.params.childId])
     : db.filter('missions', m => m.child_id === req.params.childId).sort((a,b) => b.created_at.localeCompare(a.created_at));
   res.json({ missions });
 });
@@ -385,7 +385,7 @@ app.get('/api/missions/:childId', authMiddleware, (req, res) => {
 app.post('/api/missions/:id/complete', authMiddleware, (req, res) => {
   const now = new Date().toISOString();
   if (useSqlite) {
-    sqlRun('UPDATE missions SET status = ?, completed_at = ? WHERE id = @id', { status: 'completed', completed_at: now, id: req.params.id });
+    sqlRun('UPDATE missions SET status = ?, completed_at = ? WHERE id = ?', ['completed', now, req.params.id]);
   } else {
     db.update('missions', m => m.id === req.params.id, { status: 'completed', completed_at: now });
   }
@@ -394,7 +394,7 @@ app.post('/api/missions/:id/complete', authMiddleware, (req, res) => {
 
 app.post('/api/missions/:id/approve', authMiddleware, (req, res) => {
   if (useSqlite) {
-    sqlRun('UPDATE missions SET status = ? WHERE id = @id', { status: 'approved', id: req.params.id });
+    sqlRun('UPDATE missions SET status = ? WHERE id = ?', ['approved', req.params.id]);
   } else {
     db.update('missions', m => m.id === req.params.id, { status: 'approved' });
   }
@@ -421,14 +421,14 @@ app.post('/api/time-request/create', authMiddleware, (req, res) => {
 
 app.get('/api/time-requests/:childId', authMiddleware, (req, res) => {
   const requests = useSqlite
-    ? sqlRun('SELECT * FROM time_requests WHERE child_id = @child_id ORDER BY created_at DESC', { child_id: req.params.childId })
+    ? sqlRun('SELECT * FROM time_requests WHERE child_id = ? ORDER BY created_at DESC', [req.params.childId])
     : db.filter('time_requests', r => r.child_id === req.params.childId).sort((a,b) => b.created_at.localeCompare(a.created_at));
   res.json({ requests });
 });
 
 app.post('/api/time-requests/:id/approve', authMiddleware, (req, res) => {
   if (useSqlite) {
-    sqlRun('UPDATE time_requests SET status = ? WHERE id = @id', { status: 'approved', id: req.params.id });
+    sqlRun('UPDATE time_requests SET status = ? WHERE id = ?', ['approved', req.params.id]);
   } else {
     db.update('time_requests', r => r.id === req.params.id, { status: 'approved' });
   }
@@ -437,7 +437,7 @@ app.post('/api/time-requests/:id/approve', authMiddleware, (req, res) => {
 
 app.post('/api/time-requests/:id/reject', authMiddleware, (req, res) => {
   if (useSqlite) {
-    sqlRun('UPDATE time_requests SET status = ? WHERE id = @id', { status: 'rejected', id: req.params.id });
+    sqlRun('UPDATE time_requests SET status = ? WHERE id = ?', ['rejected', req.params.id]);
   } else {
     db.update('time_requests', r => r.id === req.params.id, { status: 'rejected' });
   }
@@ -454,10 +454,9 @@ app.post('/api/usage/report', authMiddleware, (req, res) => {
   };
 
   if (useSqlite) {
-    const existing = sqlGet('SELECT * FROM usage_stats WHERE child_id = @child_id AND date = ?', { child_id, date: item.date });
+    const existing = sqlGet('SELECT * FROM usage_stats WHERE child_id = ? AND date = ?', [child_id, item.date]);
     if (existing) {
-      sqlRun('UPDATE usage_stats SET total_minutes = ?, app_stats = ?, updated_at = ? WHERE id = @id',
-        { total_minutes: item.total_minutes, app_stats: item.app_stats, updated_at: item.updated_at, id: existing.id });
+      sqlRun('UPDATE usage_stats SET total_minutes = ?, app_stats = ?, updated_at = ? WHERE id = ?', [item.total_minutes, item.app_stats, item.updated_at, existing.id]);
     } else {
       sqlRun(`INSERT INTO usage_stats (id, child_id, date, total_minutes, app_stats, updated_at)
               VALUES (@id, @child_id, @date, @total_minutes, @app_stats, @updated_at)`, item);
@@ -486,7 +485,7 @@ app.post('/api/notifications/sync', authMiddleware, (req, res) => {
   if (!child_id || !notifications) return res.status(400).json({ error: '参数不完整' });
 
   if (useSqlite) {
-    sqlRun('DELETE FROM notifications_cache WHERE child_id = @child_id', { child_id });
+    sqlRun('DELETE FROM notifications_cache WHERE child_id = ?', [child_id]);
     const insert = db.prepare(`INSERT INTO notifications_cache (id, child_id, package_name, title, text, posted_at) VALUES (?, ?, ?, ?, ?, ?)`);
     const tx = db.transaction((items) => {
       for (const n of items) {
