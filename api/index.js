@@ -195,7 +195,7 @@ app.get('/', (req, res) => {
 // ============== 用户注册 ==============
 app.post('/api/register', async (req, res) => {
   try {
-    const { email, password, role, nickname } = req.body;
+    let { email, password, role, nickname } = req.body;
     if (!email || !password || !role) {
       return res.status(400).json({ error: '邮箱、密码、角色为必填项' });
     }
