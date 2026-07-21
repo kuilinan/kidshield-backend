@@ -199,9 +199,9 @@ app.post('/api/register', async (req, res) => {
     if (!email || !password || !role) {
       return res.status(400).json({ error: '邮箱、密码、角色为必填项' });
     }
-    if (!['parent', 'child'].includes(role)) {
-      return res.status(400).json({ error: '角色必须是 parent 或 child' });
-    }
+    if (role === '家长' || role === 'parent') role = 'parent';
+  else if (role === '孩子' || role === 'child') role = 'child';
+  else return res.status(400).json({ error: '角色必须是 parent 或 child' });
 
     // 检查邮箱是否已注册
     const existing = useSqlite
@@ -234,6 +234,7 @@ app.post('/api/register', async (req, res) => {
     const token = generateToken(user);
     res.json({
       token,
+      uid: user.id,
       user: { id: user.id, email: user.email, role: user.role, nickname: user.nickname, parent_code: user.parent_code }
     });
   } catch (e) {
@@ -266,6 +267,7 @@ app.post('/api/login', async (req, res) => {
     const token = generateToken(user);
     res.json({
       token,
+      uid: user.id,
       user: { id: user.id, email: user.email, role: user.role, nickname: user.nickname, parent_code: user.parent_code }
     });
   } catch (e) {
