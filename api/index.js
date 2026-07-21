@@ -321,7 +321,7 @@ app.get('/api/parent/children', authMiddleware, (req, res) => {
     ? sqlRun('SELECT id, email, nickname, created_at FROM users WHERE parent_id = ?', [req.user.id])
     : db.filter('users', u => u.parent_id === req.user.id);
 
-  res.json(children.map(c => ({ uid: c.id, email: c.email, nickname: c.nickname })));
+  res.json({ children: children.map(c => ({ id: c.id, email: c.email, nickname: c.nickname })) });
 });
 
 // ============== 白名单管理 ==============
