@@ -336,6 +336,41 @@ app.post('/api/user/change-role', authMiddleware, async (req, res) => {
   }
 });
 
+
+// ============== 家长绑定孩子（由家长端调用） ==============
+app.post('/api/parent/bind', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({ error: '仅家长账号可绑定孩子' });
+    }
+    const { child_email, parent_code } = req.body;
+    if (!child_email || !parent_code) {
+      return res.status(400).json({ error: '孩子邮箱和家长码为必填项' });
+    }
+    // 验证家长码是否匹配当前家长
+    if (parent_code !== req.user.parent_code) {
+      return res.status(400).json({ error: '家长码错误' });
+    }
+    // 查找孩子用户
+    const child = useSqlite
+      ? sqlGet('SELECT id, email, nickname FROM users WHERE email = ? AND role = ?', [child_email, 'child'])
+      : db.find('users', u => u.email === child_email && u.role === 'child');
+    if (!child) {
+      return res.status(400).json({ error: '未找到该孩子账号，请确认邮箱正确且角色为孩子' });
+    }
+    // 更新孩子的 parent_id
+    if (useSqlite) {
+      sqlRun('UPDATE users SET parent_id = ? WHERE id = ?', [req.user.id, child.id]);
+    } else {
+      db.update('users', u => u.id === child.id, { parent_id: req.user.id });
+    }
+    res.json({ success: true, child: { id: child.id, email: child.email, nickname: child.nickname } });
+  } catch (e) {
+    console.error('家长绑定孩子失败:', e);
+    res.status(500).json({ error: '绑定失败: ' + e.message });
+  }
+});
+
 // ============== 孩子绑定家长码 ==============
 app.post('/api/child/bind', authMiddleware, async (req, res) => {
   try {
