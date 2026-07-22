@@ -286,6 +286,56 @@ app.get('/api/user/me', authMiddleware, (req, res) => {
   res.json({ user });
 });
 
+// ============== 修改用户角色（需验证原密码） ==============
+app.post('/api/user/change-role', authMiddleware, async (req, res) => {
+  try {
+    const { password, new_role } = req.body;
+    if (!password || !new_role) {
+      return res.status(400).json({ error: '密码和新角色为必填项' });
+    }
+    if (!['parent', 'child'].includes(new_role)) {
+      return res.status(400).json({ error: '角色必须是 parent 或 child' });
+    }
+
+    const user = useSqlite
+      ? sqlGet('SELECT * FROM users WHERE id = ?', [req.user.id])
+      : db.find('users', u => u.id === req.user.id);
+
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(403).json({ error: '密码错误，无法修改角色' });
+    }
+
+    // 生成新的 parent_code
+    const parent_code = new_role === 'parent' ? generateParentCode() : null;
+
+    if (useSqlite) {
+      sqlRun('UPDATE users SET role = ?, parent_code = ? WHERE id = ?', [new_role, parent_code, req.user.id]);
+    } else {
+      db.update('users', u => u.id === req.user.id, { role: new_role, parent_code });
+    }
+
+    // 生成新 token
+    const updatedUser = { ...user, role: new_role, parent_code };
+    const newToken = generateToken(updatedUser);
+    // 将旧 token 加入黑名单
+    const authHeader = req.headers.authorization;
+    if (authHeader) tokenBlacklist.add(authHeader.substring(7));
+
+    res.json({
+      success: true,
+      token: newToken,
+      uid: user.id,
+      user: { id: user.id, email: user.email, role: new_role, nickname: user.nickname, parent_code }
+    });
+  } catch (e) {
+    console.error('修改角色失败:', e);
+    res.status(500).json({ error: '修改角色失败: ' + e.message });
+  }
+});
+
 // ============== 孩子绑定家长码 ==============
 app.post('/api/child/bind', authMiddleware, async (req, res) => {
   try {
