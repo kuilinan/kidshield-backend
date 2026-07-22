@@ -347,8 +347,15 @@ app.post('/api/parent/bind', authMiddleware, async (req, res) => {
     if (!child_email || !parent_code) {
       return res.status(400).json({ error: '孩子邮箱和家长码为必填项' });
     }
-    // 验证家长码是否匹配当前家长
-    if (parent_code !== req.user.parent_code) {
+    // 从数据库获取当前家长的完整信息（含parent_code）
+    const parentInfo = useSqlite
+      ? sqlGet('SELECT id, email, parent_code FROM users WHERE id = ? AND role = ?', [req.user.id, 'parent'])
+      : db.find('users', u => u.id === req.user.id && u.role === 'parent');
+    if (!parentInfo) {
+      return res.status(403).json({ error: '账户异常，请重新登录' });
+    }
+    // 验证家长码是否匹配
+    if (parent_code !== parentInfo.parent_code) {
       return res.status(400).json({ error: '家长码错误' });
     }
     // 查找孩子用户
